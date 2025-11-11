@@ -1,0 +1,13 @@
+[
+{
+  "directory": "/workspace/thread_pool/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++    -g   -std=c++17 -o CMakeFiles/ThreadPool.dir/src/main.cpp.o -c /workspace/thread_pool/src/main.cpp",
+  "file": "/workspace/thread_pool/src/main.cpp"
+},
+
+{
+  "directory": "/workspace/thread_pool/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++    -g   -std=c++17 -o CMakeFiles/ThreadPool.dir/src/threadpool.cpp.o -c /workspace/thread_pool/src/threadpool.cpp",
+  "file": "/workspace/thread_pool/src/threadpool.cpp"
+}
+]
