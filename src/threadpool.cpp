@@ -5,29 +5,58 @@
 
 //////////线程池方法实现
 const int TASK_MAX_THRESHHOLD = 1024;
+const int THREAD_MAX_THRESHHOLD = 100;
+const int THREAD_MAX_IDLE_TIME=60;
 
 ThreadPool::ThreadPool()
     : initThreadSize_(0),
       taskSize_(0),
       taskQueMaxThreshHold_(TASK_MAX_THRESHHOLD),
-      poolMode_(PoolMode::MODE_FIXED)
+      poolMode_(PoolMode::MODE_FIXED),
+      isPoolRunning_(false),
+      idleThreadSize_(0),
+      curThreadSize_(0),
+      threadSizeThreshHold_(THREAD_MAX_THRESHHOLD)
 {}
 
 ThreadPool::~ThreadPool()
-{}
+{
+    isPoolRunning_=false;
+    notEmpty_.notify_all(); //唤醒所有线程，让其退出
+    //等待所有线程退出
+    std::unique_lock<std::mutex> lock(taskQueMtx_);
+    exitCond_.wait(lock,[&]()->bool{return curThreadSize_==0;}); 
+}
 
 void ThreadPool::setMode(PoolMode mode)
-{
+{   if(checkRunningState())
+        return;
     poolMode_=mode;
 }
 void ThreadPool::setInitThreadSize(int num)
-{
+{   
+    if(checkRunningState())
+        return;
     initThreadSize_=num;
 }
 void ThreadPool::setTaskQueMaxThreshHold(int size)
 {
+    if(checkRunningState())
+        return;
     taskQueMaxThreshHold_=size;
 }
+
+void ThreadPool::setThreadSizeMaxThreshHold(int size)
+{
+    if(checkRunningState())
+        return;
+    if(poolMode_==PoolMode::MODE_CACHED)
+    {
+        threadSizeThreshHold_=size;
+    }
+    
+}
+
 Result ThreadPool::submitTask(std::shared_ptr<Task> sp)
 {
     //获取锁
@@ -45,34 +74,51 @@ Result ThreadPool::submitTask(std::shared_ptr<Task> sp)
     //放入队列，队列不空，在 notEmpty_通知
     notEmpty_.notify_all();
 
+    //cache 模式，任务比较紧急。场景：小而快的任务，根据任务数量和空闲线程数量，动态增加线程
+    if(poolMode_==PoolMode::MODE_CACHED
+       &&taskSize_>idleThreadSize_
+       &&curThreadSize_<threadSizeThreshHold_)
+    {
+        std::cout<<"create new thread"<<std::endl;
+        //创建一个线程对象，并启动
+        auto ptr=std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc,this,std::placeholders::_1));
+        int threadId=ptr->getId();
+        threads_.emplace(threadId,std::move(ptr));
+        threads_[threadId]->start();
+        curThreadSize_++;
+        idleThreadSize_++;
+    }
     return Result(sp);
 }
 void ThreadPool::start(int initThreadSize)
 {
+    //设置线程池运行状态
+    isPoolRunning_=true;
     //记录初始线程个数
     initThreadSize_=initThreadSize;
+    curThreadSize_=initThreadSize;
 
     //创建线程对象
     for(int i=0;i<initThreadSize_;i++)
     {
-        auto ptr=std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc,this));
-        threads_.emplace_back(std::move(ptr));
+        auto ptr=std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc,this,std::placeholders::_1));
+        int threadId=ptr->getId();
+        threads_.emplace(threadId,std::move(ptr));
     }
 
     //启动所有线程
     for(int i=0;i<initThreadSize_;i++)
     {
         threads_[i]->start();
+        idleThreadSize_++;
     }
 }
 
 //自定义线程函数，从任务队列取任务
-void ThreadPool::threadFunc()
+void ThreadPool::threadFunc(int threadId)
 {
-    // std::cout<<"begin func"<<std::endl;
-    // std::cout<<std::this_thread::get_id()<<std::endl;
-    // std::cout<<"end func"<<std::endl;
-    for(;;)
+    auto lastTime=std::chrono::high_resolution_clock::now();
+    while(isPoolRunning_)
     {
         std::shared_ptr<Task> task;
         {
@@ -80,7 +126,48 @@ void ThreadPool::threadFunc()
 
             std::cout<<"tid="<<std::this_thread::get_id()<<" try to get task"<<std::endl;
 
-            notEmpty_.wait(lock,[&]()->bool{return taskQueue_.size()>0;});
+            //cache 模式下，线程空闲超过 60 秒，自动结束多余的线程(超过 initThreadSize_的线程)
+
+            while (taskQueue_.size()==0)
+            {
+                if(poolMode_==PoolMode::MODE_CACHED)
+                {
+                    //每一秒返回一次
+                    if(std::cv_status::timeout==
+                       notEmpty_.wait_for(lock,std::chrono::seconds(1)))
+                    {   
+                        auto nowTime=std::chrono::high_resolution_clock::now();
+                        auto dur=std::chrono::duration_cast<std::chrono::seconds>(nowTime-lastTime);
+                        if(dur.count()>=THREAD_MAX_IDLE_TIME
+                            &&curThreadSize_>initThreadSize_)
+                        {
+                            //开始回收当前线程
+                            //记录线程数量的相关变量的值修改
+                            //把线程对象从线程列表容器里面删除
+                            threads_.erase(threadId);
+                            curThreadSize_--;
+                            idleThreadSize_--;
+                            std::cout<<"threadid="<<std::this_thread::get_id()<<" exit"<<std::endl;
+                            return;
+                        }
+                    }
+                }
+                else{
+                    notEmpty_.wait(lock);
+                }
+                //线程池被关闭，线程退出
+                if(!isPoolRunning_)
+                {
+                    //线程池被关闭，线程退出
+                    curThreadSize_--;
+                    idleThreadSize_--;
+                    exitCond_.notify_all();
+                    std::cout<<"threadid="<<std::this_thread::get_id()<<" exit"<<std::endl;
+                    return;
+                }
+            }
+            
+            idleThreadSize_--;
 
             std::cout<<"tid="<<std::this_thread::get_id()<<" get task"<<std::endl;
 
@@ -101,20 +188,39 @@ void ThreadPool::threadFunc()
             //task->run();//把任务返回值 setVal 传给 Result
             task->exec();
         }
+        idleThreadSize_++;
+        lastTime=std::chrono::high_resolution_clock::now();
     }
+    threads_.erase(threadId);
+    curThreadSize_--;
+    idleThreadSize_--;
+    exitCond_.notify_all();
+    std::cout<<"threadid="<<std::this_thread::get_id()<<" exit"<<std::endl;
+}
+
+bool ThreadPool::checkRunningState () const
+{
+    return isPoolRunning_;
 }
 
 //////////线程类方法实现
+int Thread::generateId_=0;
+
+int Thread::getId() const
+{
+    return threadId_;
+}
 
 void Thread::start()
 {
     //创建一个线程来执行一个函数
-    std::thread t(func_);
+    std::thread t(func_,threadId_);
     t.detach();
 }
 
 Thread::Thread(ThreadFunc func)
-    :func_(func){}
+    :func_(func),threadId_(generateId_++)
+{}
 
 Thread::~Thread(){}
 

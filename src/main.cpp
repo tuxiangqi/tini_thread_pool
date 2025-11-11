@@ -32,13 +32,25 @@ private:
 };
 
 int main(){
-    ThreadPool pool;
+    
+    {
+        ThreadPool pool;
+    pool.setMode(PoolMode::MODE_CACHED);
     pool.start(4);
     Result res1=pool.submitTask(std::make_shared<MyTask>(1,100000000));
+    Result res2=pool.submitTask(std::make_shared<MyTask>(100000001,200000000));
+    Result res3=pool.submitTask(std::make_shared<MyTask>(200000001,300000000));
+    pool.submitTask(std::make_shared<MyTask>(200000001,300000000));
+    pool.submitTask(std::make_shared<MyTask>(200000001,300000000));
+    pool.submitTask(std::make_shared<MyTask>(200000001,300000000));
+
     
     ulong sum1=res1.get().cast_<ulong>();
-    std::cout<<"Total sum is "<<sum1<<std::endl;
-    
+    ulong sum2=res2.get().cast_<ulong>();
+    ulong sum3=res3.get().cast_<ulong>();
+
+    std::cout<<"Total sum is "<<sum1+sum2+sum3<<std::endl;
+    }
     getchar(); //阻塞，防止主线程退出
     return 0;
 }
