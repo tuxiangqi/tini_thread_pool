@@ -23,9 +23,9 @@ ThreadPool::ThreadPool()
 ThreadPool::~ThreadPool()
 {
     isPoolRunning_ = false;
-    notEmpty_.notify_all(); // 唤醒所有线程，让其退出
     // 等待所有线程退出
     std::unique_lock<std::mutex> lock(taskQueMtx_);
+    notEmpty_.notify_all(); // 唤醒所有线程，让其退出
     exitCond_.wait(lock, [&]() -> bool
                    { return curThreadSize_ == 0; });
 }
@@ -129,7 +129,7 @@ void ThreadPool::threadFunc(int threadId)
 
             // cache 模式下，线程空闲超过 60 秒，自动结束多余的线程(超过 initThreadSize_的线程)
 
-            while (taskQueue_.size() == 0)
+            while (isPoolRunning_ && taskQueue_.size() == 0)
             {
                 if (poolMode_ == PoolMode::MODE_CACHED)
                 {
@@ -156,16 +156,21 @@ void ThreadPool::threadFunc(int threadId)
                 {
                     notEmpty_.wait(lock);
                 }
-                // 线程池被关闭，线程退出
-                if (!isPoolRunning_)
-                {
-                    // 线程池被关闭，线程退出
-                    curThreadSize_--;
-                    idleThreadSize_--;
-                    exitCond_.notify_all();
-                    std::cout << "threadid=" << std::this_thread::get_id() << " exit" << std::endl;
-                    return;
-                }
+                // // 线程池被关闭，线程退出
+                // if (!isPoolRunning_)
+                // {
+                //     // 线程池被关闭，线程退出
+                //     curThreadSize_--;
+                //     idleThreadSize_--;
+                //     exitCond_.notify_all();
+                //     std::cout << "threadid=" << std::this_thread::get_id() << " exit" << std::endl;
+                //     return;
+                // }
+            }
+            // 线程池被关闭，线程退出
+            if (!isPoolRunning_)
+            {
+                break; 
             }
 
             idleThreadSize_--;

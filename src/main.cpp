@@ -16,6 +16,7 @@ public:
     {
         std::cout << "tid=" << std::this_thread::get_id() << " begin" << std::endl;
         std::cout << "Task is running in thread " << std::this_thread::get_id() << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(1)); // 模拟任务执行耗时
         ulong sum = 0;
         for (ulong i = begin_; i <= end_; i++)
         {
@@ -35,12 +36,19 @@ int main()
 {
     {
         ThreadPool pool;
-        pool.start(4); // 启动线程池，指定初始线程数量为4
+        pool.setMode(PoolMode::MODE_CACHED);
+        pool.start(2); // 启动线程池，指定初始线程数量为4
         Result res1 = pool.submitTask(std::make_shared<MyTask>(1, 100000000));
+        Result res2 = pool.submitTask(std::make_shared<MyTask>(100000001, 200000000));
+        Result res3 = pool.submitTask(std::make_shared<MyTask>(200000001, 300000000));
+        pool.submitTask(std::make_shared<MyTask>(200000001, 300000000));
+        pool.submitTask(std::make_shared<MyTask>(200000001, 300000000));
+        pool.submitTask(std::make_shared<MyTask>(200000001, 300000000));
         uLong sum1 = res1.get().cast_<ulong>();
         std::cout << "Total sum is " << sum1 << std::endl;
    }
     std::cout << "main over" << std::endl;
+    getchar(); // 阻塞，防止主线程退出
 #if 0
     {
         ThreadPool pool;
