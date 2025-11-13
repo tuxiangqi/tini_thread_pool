@@ -8,6 +8,7 @@
 #include <condition_variable>
 #include <functional>
 #include <iostream>
+#include <thread>
 #include <unordered_map>
 
 class Any
@@ -165,7 +166,7 @@ public:
     // 提交任务
     Result submitTask(std::shared_ptr<Task> sp);
     // 启动线程池
-    void start(int initThreadSize = 4);
+    void start(int initThreadSize = std::thread::hardware_concurrency());
 
     ThreadPool(const ThreadPool &) = delete;
     ThreadPool &operator=(const ThreadPool &) = delete;

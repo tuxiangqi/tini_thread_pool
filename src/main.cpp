@@ -33,7 +33,15 @@ private:
 
 int main()
 {
-
+    {
+        ThreadPool pool;
+        pool.start(4); // 启动线程池，指定初始线程数量为4
+        Result res1 = pool.submitTask(std::make_shared<MyTask>(1, 100000000));
+        uLong sum1 = res1.get().cast_<ulong>();
+        std::cout << "Total sum is " << sum1 << std::endl;
+   }
+    std::cout << "main over" << std::endl;
+#if 0
     {
         ThreadPool pool;
         pool.setMode(PoolMode::MODE_CACHED);
@@ -53,4 +61,5 @@ int main()
     }
     getchar(); // 阻塞，防止主线程退出
     return 0;
+#endif
 }
