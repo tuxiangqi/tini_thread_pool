@@ -9,8 +9,16 @@ set(SOURCES
     src/threadpool.cpp
     include/threadpool.h
 )
+set(SOURCES2
+    src/test_thread_pool_slim.cpp
+    include/threadpool_slim.h
+)
+
 find_package(Threads REQUIRED)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
-
+    
+add_executable(${PROJECT_NAME}_slim ${SOURCES2})
+target_include_directories(${PROJECT_NAME}_slim PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads)
+target_link_libraries(${PROJECT_NAME}_slim PRIVATE Threads::Threads)
