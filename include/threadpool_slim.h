@@ -186,8 +186,17 @@ private:
     void threadFunc(int threadId)
     {
         auto lastTime = std::chrono::high_resolution_clock::now();
-        while (isPoolRunning_)
+        for (;;)
         {
+            if (!isPoolRunning_)
+                {
+                    threads_.erase(threadId);
+                    curThreadSize_--;
+                    idleThreadSize_--;
+                    exitCond_.notify_all();
+                    std::cout << "threadid=" << std::this_thread::get_id() << " exit" << std::endl;
+                    return;// 线程函数结束，线程退出
+                }
             Task task;
             {
                 std::unique_lock<std::mutex> lock(taskQueMtx_);
@@ -256,11 +265,6 @@ private:
             idleThreadSize_++;
             lastTime = std::chrono::high_resolution_clock::now();
         }
-        threads_.erase(threadId);
-        curThreadSize_--;
-        idleThreadSize_--;
-        exitCond_.notify_all();
-        std::cout << "threadid=" << std::this_thread::get_id() << " exit" << std::endl;
     }
 
     // 检查 pool 的运行状态
