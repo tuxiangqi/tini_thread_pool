@@ -127,6 +127,7 @@ public:
             auto task0 = std::make_shared<std::packaged_task<RType()>>(
                 []() -> RType
                 { return RType(); });
+            (*task0)();
             return task0->get_future();
         }
         // 如果有空，把任务放入任务队列
