@@ -82,7 +82,7 @@ Result ThreadPool::submitTask(std::shared_ptr<Task> sp)
     {
         std::cout << "create new thread" << std::endl;
         // 创建一个线程对象，并启动
-        auto ptr = std::make_shared<Thread>(std::bind(&ThreadPool::threadFunc, this, std::placeholders::_1));
+        auto ptr = std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc, this, std::placeholders::_1));
         int threadId = ptr->getId();
         threads_.emplace(threadId, std::move(ptr));
         threads_[threadId]->start();
@@ -102,7 +102,7 @@ void ThreadPool::start(int initThreadSize)
     // 创建线程对象
     for (int i = 0; i < initThreadSize_; i++)
     {
-        auto ptr = std::make_shared<Thread>(std::bind(&ThreadPool::threadFunc, this, std::placeholders::_1));
+        auto ptr = std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc, this, std::placeholders::_1));
         int threadId = ptr->getId();
         threads_.emplace(threadId, std::move(ptr));
     }
@@ -253,12 +253,12 @@ Any Result::get()
 {
     if (!isValid_)
         return "";
-    sem_.wait(); // task 任务如果没有执行完毕
+    sem_->wait(); // task 任务如果没有执行完毕
     return std::move(any_);
 }
 
 void Result::setVal(Any any)
 {
     this->any_ = std::move(any);
-    sem_.post();
+    sem_->post();
 }

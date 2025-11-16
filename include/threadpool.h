@@ -102,7 +102,7 @@ public:
 
 private:
     Any any_;                    // 存储任务返回值
-    Semaphore sem_;              // 线程通信信号量
+    std::shared_ptr<Semaphore> sem_;              // 线程通信信号量
     std::shared_ptr<Task> task_; // 对应获取返回值的 Task 对象
     std::atomic_bool isValid_;   // 返回值是否有效
 };
