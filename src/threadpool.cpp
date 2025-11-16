@@ -126,8 +126,8 @@ void ThreadPool::threadFunc(int threadId)
         {
             std::unique_lock<std::mutex> lock(taskQueMtx_);
 
-            std::cout << "tid=" << std::this_thread::get_id() << " try to get task" << std::endl;
-
+            //std::cout << "tid=" << std::this_thread::get_id() << " try to get task" << std::endl;
+            std::cout << "tid=" << threadId << " try to get task" << std::endl;
             // cache 模式下，线程空闲超过 60 秒，自动结束多余的线程(超过 initThreadSize_的线程)
 
             // 当任务队列为空的时候，线程的逻辑
@@ -140,7 +140,8 @@ void ThreadPool::threadFunc(int threadId)
                     curThreadSize_--;
                     idleThreadSize_--;
                     exitCond_.notify_all();
-                    std::cout << "threadid=" << std::this_thread::get_id() << " exit" << std::endl;
+                    //std::cout << "threadid=" << std::this_thread::get_id() << " exit" << std::endl;
+                    std::cout << "threadid=" << threadId << " exit" << std::endl;
                     return; // 线程函数结束，线程退出
                 }
 
@@ -160,7 +161,8 @@ void ThreadPool::threadFunc(int threadId)
                             threads_.erase(threadId);
                             curThreadSize_--;
                             idleThreadSize_--;
-                            std::cout << "threadid=" << std::this_thread::get_id() << " exit" << std::endl;
+                            //std::cout << "threadid=" << std::this_thread::get_id() << " exit" << std::endl;
+                            std::cout << "threadid=" << threadId << " exit" << std::endl;
                             return;
                         }
                     }
@@ -175,7 +177,8 @@ void ThreadPool::threadFunc(int threadId)
             task = taskQueue_.front();
             taskQueue_.pop();
             taskSize_--;
-            std::cout << "tid=" << std::this_thread::get_id() << " get task" << std::endl;
+            //std::cout << "tid=" << std::this_thread::get_id() << " get task" << std::endl;
+            std::cout << "tid=" << threadId << " get task" << std::endl;
             // 有剩余任务，通知其他线程
             if (taskQueue_.size() > 0)
             {
@@ -253,12 +256,12 @@ Any Result::get()
 {
     if (!isValid_)
         return "";
-    sem_->wait(); // task 任务如果没有执行完毕
+    sem_.wait(); // task 任务如果没有执行完毕
     return std::move(any_);
 }
 
 void Result::setVal(Any any)
 {
     this->any_ = std::move(any);
-    sem_->post();
+    sem_.post();
 }
