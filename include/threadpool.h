@@ -59,7 +59,7 @@ class Semaphore
 {
 public:
     Semaphore(int limit = 0) : resLimit_(limit), isExit_(false) {};
-    ~Semaphore() 
+    ~Semaphore()
     {
         isExit_ = true;
     }
@@ -193,13 +193,14 @@ private:
     std::atomic_int curThreadSize_;                            // 线程池当前线程总数量
     int threadSizeThreshHold_;                                 // 线程数量上限值
     std::atomic_int idleThreadSize_;                           // 空闲线程的数量
-    std::queue<std::shared_ptr<Task>> taskQueue_;              // 任务队列
-    std::atomic_int taskSize_;                                 // 任务数量
-    int taskQueMaxThreshHold_;                                 // 任务队列最大容量
+
+    std::queue<std::shared_ptr<Task>> taskQueue_; // 任务队列
+    std::atomic_int taskSize_;                    // 任务数量
+    int taskQueMaxThreshHold_;                    // 任务队列最大容量
 
     std::mutex taskQueMtx_;            // 任务队列互斥锁
-    std::condition_variable notFull_;  // 任务队列不为空条件变量
-    std::condition_variable notEmpty_; // 任务队列不为满条件变量
+    std::condition_variable notFull_;  // 任务队列不为满条件变量
+    std::condition_variable notEmpty_; // 任务队列不为空条件变量
     std::condition_variable exitCond_; // 线程池退出条件变量
 
     PoolMode poolMode_;              // 线程池模式

@@ -82,7 +82,7 @@ Result ThreadPool::submitTask(std::shared_ptr<Task> sp)
     {
         std::cout << "create new thread" << std::endl;
         // 创建一个线程对象，并启动
-        auto ptr = std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc, this, std::placeholders::_1));
+        auto ptr = std::make_shared<Thread>(std::bind(&ThreadPool::threadFunc, this, std::placeholders::_1));
         int threadId = ptr->getId();
         threads_.emplace(threadId, std::move(ptr));
         threads_[threadId]->start();
@@ -102,7 +102,7 @@ void ThreadPool::start(int initThreadSize)
     // 创建线程对象
     for (int i = 0; i < initThreadSize_; i++)
     {
-        auto ptr = std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc, this, std::placeholders::_1));
+        auto ptr = std::make_shared<Thread>(std::bind(&ThreadPool::threadFunc, this, std::placeholders::_1));
         int threadId = ptr->getId();
         threads_.emplace(threadId, std::move(ptr));
     }
@@ -115,9 +115,10 @@ void ThreadPool::start(int initThreadSize)
     }
 }
 
-// 自定义线程函数，从任务队列取任务
+// 自定义线程函数，从任务队列取任务，体现了一个线程的生命周期
 void ThreadPool::threadFunc(int threadId)
 {
+    // 记录这个线程的起始时间（并在每次循环之后更新），用于判断空闲时间（如果是 cached 模式）
     auto lastTime = std::chrono::high_resolution_clock::now();
     for (;;)
     {
@@ -129,8 +130,10 @@ void ThreadPool::threadFunc(int threadId)
 
             // cache 模式下，线程空闲超过 60 秒，自动结束多余的线程(超过 initThreadSize_的线程)
 
+            // 当任务队列为空的时候，线程的逻辑
             while (taskQueue_.size() == 0)
             {
+                // 线程池被关闭的逻辑
                 if (!isPoolRunning_)
                 {
                     threads_.erase(threadId);
@@ -138,7 +141,7 @@ void ThreadPool::threadFunc(int threadId)
                     idleThreadSize_--;
                     exitCond_.notify_all();
                     std::cout << "threadid=" << std::this_thread::get_id() << " exit" << std::endl;
-                    return;// 线程函数结束，线程退出
+                    return; // 线程函数结束，线程退出
                 }
 
                 if (poolMode_ == PoolMode::MODE_CACHED)
@@ -166,25 +169,13 @@ void ThreadPool::threadFunc(int threadId)
                 {
                     notEmpty_.wait(lock);
                 }
-                // // 线程池被关闭，线程退出
-                // if (!isPoolRunning_)
-                // {
-                //     // 线程池被关闭，线程退出
-                //     curThreadSize_--;
-                //     idleThreadSize_--;
-                //     exitCond_.notify_all();
-                //     std::cout << "threadid=" << std::this_thread::get_id() << " exit" << std::endl;
-                //     return;
-                // }
             }
-
             idleThreadSize_--;
-
-            std::cout << "tid=" << std::this_thread::get_id() << " get task" << std::endl;
 
             task = taskQueue_.front();
             taskQueue_.pop();
             taskSize_--;
+            std::cout << "tid=" << std::this_thread::get_id() << " get task" << std::endl;
             // 有剩余任务，通知其他线程
             if (taskQueue_.size() > 0)
             {
@@ -197,10 +188,11 @@ void ThreadPool::threadFunc(int threadId)
         // 当前线程负责执行这个任务
         if (task != nullptr)
         {
-            // task->run();//把任务返回值 setVal 传给 Result
             task->exec();
         }
         idleThreadSize_++;
+
+        // 更新线程的空闲时间点
         lastTime = std::chrono::high_resolution_clock::now();
     }
 }
